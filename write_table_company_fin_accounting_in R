@@ -1,27 +1,44 @@
 library(readxl)
 library(sqldf)
+getwd()
+setwd("C://Learn_R//rosstat")
 myDB <- "C:/sqlite/company.db"
 conn <- dbConnect(drv = SQLite(), dbname= myDB)
-fin_accounting_structure <- read.table("C://learn_R//rosstat//structure.csv", sep = ",", stringsAsFactors = F, header = T)
-chunk_length <- 100000
-skip_rows <- 0
-chunk_length_fact <- chunk_length
-iter_num <- 0
-rows_counter <- 0
+fin_accounting_structure <- read.table("C://Learn_R//rosstat//structure.csv", sep = ",", stringsAsFactors = F, header = T)
+chunk_length      <-  100000
+skip_rows         <-  0
+chunk_length_fact <-  chunk_length
+iter_num          <-  0
+rows_counter      <-  0 
 reporting_year <- "2018"
+
 while (chunk_length_fact == chunk_length) {
-  iter_num <- iter_num + 1
-  company_base_info_raw <- read.csv(file = "C://learn_R//rosstat//all.csv", header = F, stringsAsFactors = F,
-                                 nrows = chunk_length,
-                                 skip = skip_rows,
-                                 quote = "",
-                                 sep = ";",
-                                 colClasses=c("V2"="character", "V3"="character","V4"="character","V6"="character"))
-  company_base_info <- company_base_info_raw[,c(1:6,8,266)]
-  rows_counter <- rows_counter + nrow(company_base_info)
-  colnames(company_base_info) <- c("company_nm","okpo","okopf","okfs","okved","inn","type_of_organisation","report_date")
-  dbWriteTable(conn, "company_base_info_raw", company_base_info, append = TRUE)
-  print(paste("Chunk №", iter_num, "rows processed total:", rows_counter, "start time", date()))
-  chunk_length_fact <- nrow(company_base_info)
-  skip_rows <- skip_rows + chunk_length
+  iter_num <-  iter_num + 1
+  fin_accounting_raw <- read.csv(file = 'fin2018.csv', header = F, stringsAsFactors = F, 
+                      nrows = chunk_length, 
+                       skip = skip_rows,
+                       quote = "",
+                       sep = ";",
+                      colClasses = c("V6" = "character"))
+  fin_accounting <- fin_accounting_raw [ ,c(6,1,9:266,7)]
+  fin_accounting[ ,2] <- reporting_year
+  rows_counter <- rows_counter + nrow(fin_accounting)
+  colnames(fin_accounting) <- c("inn","report_year", paste0("p",fin_accounting_structure$field.name[9:265]),"report_date", "measure")
+  fin_accounting$koef <- ifelse(fin_accounting$measure == 384,1000,ifelse(fin_accounting$measure == 385,1000000,1))
+  fin_accounting_indicators <- as.data.frame(sapply(fin_accounting[ ,c(3:259)], function(x) fin_accounting$koef * x))
+  fin_accounting_clear <- cbind(fin_accounting[,c("inn","report_year")], fin_accounting_indicators, fin_accounting[,"report_date"])
+  colnames(fin_accounting_clear)[length(fin_accounting_clear)] <- "report_date"
+  # dbListFields(conn,name ="company_fin_accounting")
+  dbWriteTable(conn, "company_fin_accounting_raw", fin_accounting_clear, append = TRUE)
+  print(paste("Chunk �", iter_num, "rows processed total:", rows_counter, "start time", date()))
+  chunk_length_fact <-  nrow(fin_accounting_clear)
+  skip_rows <-  skip_rows + chunk_length
+  gc()
 }
+
+
+
+
+
+
+
