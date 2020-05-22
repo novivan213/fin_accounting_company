@@ -1,1 +1,27 @@
-
+library(readxl)
+library(sqldf)
+myDB <- "C:/sqlite/company.db"
+conn <- dbConnect(drv = SQLite(), dbname= myDB)
+fin_accounting_structure <- read.table("C://learn_R//rosstat//structure.csv", sep = ",", stringsAsFactors = F, header = T)
+chunk_length <- 100000
+skip_rows <- 0
+chunk_length_fact <- chunk_length
+iter_num <- 0
+rows_counter <- 0
+reporting_year <- "2018"
+while (chunk_length_fact == chunk_length) {
+  iter_num <- iter_num + 1
+  company_base_info_raw <- read.csv(file = "C://learn_R//rosstat//all.csv", header = F, stringsAsFactors = F,
+                                 nrows = chunk_length,
+                                 skip = skip_rows,
+                                 quote = "",
+                                 sep = ";",
+                                 colClasses=c("V2"="character", "V3"="character","V4"="character","V6"="character"))
+  company_base_info <- company_base_info_raw[,c(1:6,8,266)]
+  rows_counter <- rows_counter + nrow(company_base_info)
+  colnames(company_base_info) <- c("company_nm","okpo","okopf","okfs","okved","inn","type_of_organisation","report_date")
+  dbWriteTable(conn, "company_base_info_raw", company_base_info, append = TRUE)
+  print(paste("Chunk №", iter_num, "rows processed total:", rows_counter, "start time", date()))
+  chunk_length_fact <- nrow(company_base_info)
+  skip_rows <- skip_rows + chunk_length
+}
